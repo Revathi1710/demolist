@@ -1,0 +1,983 @@
+<?php
+include("header.php");
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 0);
+error_reporting(E_ALL);
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+require 'vendor/autoload.php';
+
+// Include your database connection or any other necessary functions
+$slider = getAll("sliderHome");
+function getProductsList()
+{
+    global $con;
+    $query = "SELECT p.*, c.id AS categoryid, c.name AS categoryName 
+              FROM products p 
+              INNER JOIN categories c ON p.category_id = c.id
+              WHERE p.status = '1'
+              ORDER BY p.id ASC";
+    $result = mysqli_query($con, $query);
+    return $result;
+}
+function bannerSetting()
+{
+    global $con;
+    $query = "SELECT * FROM  homebanner WHERE select_id =1"; // Assuming 'confirm_id' is the primary key
+    $query_run = mysqli_query($con, $query);
+
+    if (!$query_run) {
+        die("Query failed: " . mysqli_error($con));
+    }
+
+    return mysqli_fetch_assoc($query_run);
+}
+$bannerSetting = bannerSetting();
+
+function getCategory()
+{
+    global $con;
+    $query = "SELECT * FROM categories";
+    $result = mysqli_query($con, $query);
+    return mysqli_fetch_assoc($result);
+}
+
+function getAllProducts2()
+{
+    global $con;
+    $products = array();
+    $sql = "SELECT p.*, c.id AS categoryid, c.name AS categoryName ,c.slug AS categoryslug 
+            FROM products p 
+            INNER JOIN categories c ON p.category_id = c.id
+            WHERE p.status = '1'
+            ORDER BY p.id ASC";
+    $result = mysqli_query($con, $sql);
+
+    if (mysqli_num_rows($result) > 0) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $products[] = $row;
+        }
+    }
+    return $products;
+}
+
+function getSubCategoryProducts($categoryIds)
+{
+    global $con;
+
+    // Sanitize category IDs to prevent SQL injection
+    $categoryIds = array_map('intval', $categoryIds); // Ensure all values are integers
+    $categoryIds = implode(",", $categoryIds); // Convert array to comma-separated string
+
+    // Corrected SQL query with ORDER BY for both p.id and c.id
+    $query = "SELECT p.*, c.name AS categoryName 
+              FROM products p 
+              INNER JOIN categories c ON p.category_id = c.id
+              WHERE p.category_id IN ($categoryIds) AND p.status = '1' 
+              ORDER BY p.id ASC"; // Comma added between p.id ASC and c.id ASC
+
+    $result = mysqli_query($con, $query);
+
+    $products = [];
+    if (mysqli_num_rows($result) > 0) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $products[] = $row;
+        }
+    }
+    return $products;
+}
+$category = getCategory();
+
+$productResult = getProductsList();
+function getAllActiveCategories()
+{
+  
+    global $con;
+  $query = "SELECT * FROM categories WHERE status = '0' ORDER BY sort_order ASC";
+  $query_run = mysqli_query($con, $query);
+
+   
+    if (!$query_run) {
+        // Optionally, you can log the error or handle it accordingly
+        die("Query Failed: " . mysqli_error($con));
+    }
+
+    return $query_run;
+}
+
+// Fetch the categories
+$categories = getAllActiveCategories();
+
+
+// Fetch all products initially
+$products = getAllProducts2();
+?>
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Crackers</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script type="text/javascript">
+       (function(){
+          emailjs.init({
+            publicKey: "pxM5-bjbOcy6zeyuq",
+          });
+       })();
+    </script>
+    <style>
+        /* Modern UI Styles matching the screenshot */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+
+        /* Header Styles */
+        .productdetails {
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            color: white;
+            padding: 20px;
+            position: sticky;
+            top: 0;
+            z-index: 1020;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .alldetails {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .dynamic {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-weight: 600;
+        }
+
+        .dynamic input {
+            margin-top: 8px;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            font-weight: bold;
+            text-align: center;
+            width: 120px;
+        }
+
+        /* Modern Product Grid */
+        .products-container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .category-section {
+            margin-bottom: 40px;
+        }
+
+        .category-header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(255,107,107,0.3);
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            padding: 20px 0;
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border: 1px solid #f0f0f0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+        }
+
+        .product-image {
+            text-align: center;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .product-image img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 10px;
+            transition: transform 0.3s ease;
+        }
+
+        .product-image:hover img {
+            transform: scale(1.1);
+        }
+
+        .youtube-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #ff0000;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .product-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .product-content {
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .price-section {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .original-price {
+            color: #999;
+            text-decoration: line-through;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .selling-price {
+            color: #e91e63;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .quantity-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 10px;
+        }
+
+        .quantity-btn {
+            background: #e91e63;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .quantity-input {
+            border: 2px solid #e91e63;
+            border-radius: 20px;
+            padding: 8px 15px;
+            text-align: center;
+            font-weight: bold;
+            width: 60px;
+        }
+
+        .add-btn {
+            background: linear-gradient(135deg, #4caf50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 10px 20px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .add-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76,175,80,0.3);
+        }
+
+        .total-price {
+            text-align: center;
+            font-weight: 600;
+            color: #333;
+            margin-top: 10px;
+        }
+
+        /* Total Section */
+        .total-section {
+            background: white;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .total-amount {
+            font-size: 24px;
+            font-weight: 700;
+            color: #e91e63;
+        }
+
+        /* Form Styles */
+        .form-container {
+            max-width: 800px;
+            margin: 30px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .form-container h2 {
+            color: #e91e63;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .star {
+            color: #e91e63;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #e91e63;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(233,30,99,0.3);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+        }
+
+        .modal-content {
+            margin: 5% auto;
+            width: 90%;
+            max-width: 600px;
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            position: relative;
+        }
+
+        .close {
+            position: absolute;
+            right: 15px;
+            top: 10px;
+            font-size: 28px;
+            color: #999;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #e91e63;
+        }
+
+        /* Banner Styles */
+        .banner img {
+            width: 100%;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .carousel-container {
+            margin-bottom: 30px;
+        }
+
+        .carousel-item img {
+            border-radius: 15px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .alldetails {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .dynamic {
+                width: 100%;
+            }
+
+            .dynamic input {
+                width: 100%;
+                max-width: 200px;
+            }
+
+            .products-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                gap: 15px;
+                padding: 15px 0;
+            }
+
+            .product-card {
+                padding: 15px;
+            }
+
+            .products-container {
+                padding: 0 15px;
+            }
+
+            .form-container {
+                margin: 20px 15px;
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .products-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .alldetails {
+                padding: 15px;
+            }
+        }
+
+        /* Animation for price changes */
+        @keyframes priceHighlight {
+            0% { color: #e91e63; }
+            50% { color: #ff6b6b; transform: scale(1.05); }
+            100% { color: #e91e63; }
+        }
+
+        .price-animated {
+            animation: priceHighlight 0.5s ease;
+        }
+    </style>
+</head>
+
+<body>
+<div class="productdetails">
+    <div class="alldetails">
+        <div class="dynamic">Product<input type="text" class="noProduct" readonly></div>
+        <div class="dynamic">You Save<input type="text" class="saveprice" readonly></div>
+        <div class="dynamic">Overall Price<input type="text" class="overall" readonly></div>
+    </div>
+</div>
+
+<section class="bannerbody">
+    <?php
+    if($bannerSetting['banner']==1)
+    {
+        ?>
+        <div class="banner">
+            <?php
+            if (!empty($banners)) {
+                foreach ($banners as $banner) {
+            ?>
+                    <div class="banner-item">
+                        <div class="banner-image">
+                            <img src="uploads/<?= $banner['image'] ?>" class="img" alt="banner Image">
+                        </div>
+                        <div class="title-details">
+                            <div class="title">
+                                <h2><?= $banner['title'] ?></h2>
+                            </div>
+                            <div class="link">
+                                <a href="<?= $banner['link'] ?>" class="button-link"><?= $banner['link'] ?></a>
+                            </div>
+                            <div class="content">
+                                <h2><?= $banner['content'] ?></h2>
+                            </div>
+                        </div>
+                    </div>
+            <?php
+                }
+            } else {
+                echo '<div class="noresult">';
+                echo "No records Found";
+                echo '</div>';
+            }
+        }
+        
+        if ($bannerSetting['slider'] == 1) {
+    ?>
+    <div class="carousel-container">
+        <div id="carouselExampleControls" class="carousel slide" data-bs-ride="carousel">
+            <div class="carousel-inner">
+                <?php
+                if (!empty($slider)) {
+                    $active = true; // Flag to track active slide
+                    foreach ($slider as $slide) {
+                        ?>
+                        <div class="carousel-item <?= $active ? 'active' : '' ?>">
+                            <img src="images/<?= $slide['slider_image'] ?>" class="d-block w-100 sliderimage" alt="Slide Image">
+                            <div class="carousel-caption d-md-block" style='text-align:<?= $slide['align']?>'>
+                                <h2 style='color:<?= $slide['title_color']?>'><?= $slide['slider_title'] ?></h2>
+                                <h3 class="slider_subtitle" style='color:<?= $slide['subtitle_color']?>'><?= $slide['slider_subtitle'] ?></h3>
+                            </div>
+                        </div>
+                        <?php
+                        $active = false; // Set active flag to false after the first slide
+                    }
+                } else {
+                    echo '<div class="carousel-item"><div class="noresult">No records Found</div></div>';
+                }
+                ?>
+            </div>
+            <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleControls" data-bs-slide="prev">
+                <span class="carousel-control-prev-icon" aria-hidden="true"><i class="fa fa-angle-left"></i></span>
+                <span class="visually-hidden">Previous</span>
+            </button>
+            <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleControls" data-bs-slide="next">
+                <span class="carousel-control-next-icon" aria-hidden="true"><i class="fa fa-angle-right"></i></span>
+                <span class="visually-hidden">Next</span>
+            </button>
+        </div>
+    </div>
+    <?php
+    } else {
+        echo '<div class="noresult">No records Found</div>';
+    }
+    ?>
+</section>
+
+<!-- Modern Products Container -->
+<div class="products-container">
+    <?php if (!empty($categories)): ?>
+        <?php foreach ($categories as $category): ?>
+            <?php
+            // Fetch products for the current category
+            $products = getSubCategoryProducts([$category['id']]);
+            if (!empty($products)): ?>
+                <div class="category-section">
+                    <div class="category-header">
+                        <h3><?= $category['name']; ?></h3>
+                    </div>
+                    
+                    <div class="products-grid">
+                        <?php foreach ($products as $product): ?>
+                            <div class="product-card" data-product-id="<?= $product['id']; ?>">
+                                <div class="product-image">
+                                    <img src="uploads/<?= $product['image']; ?>" 
+                                         onclick="openImageModal(this)" 
+                                         class="productImage" 
+                                         alt="<?= $product['name']; ?>">
+                                    
+                                    <?php if (!empty($product['youtube_url'])) { ?>
+                                        <button class="youtube-btn" onclick="openYoutubeModal('<?= $product['youtube_url']; ?>')">
+                                            <i class='fab fa-youtube'></i>
+                                        </button>
+                                    <?php } ?>
+                                </div>
+                                
+                                <div class="product-name"><?= $product['name']; ?></div>
+                                <div class="product-content"><?= $product['piece_per_box']; ?></div>
+                                
+                                <div class="price-section">
+                                    <div class="original-price">₹<?= $product['original_price']; ?></div>
+                                    <div class="selling-price">₹<?= $product['selling_price']; ?></div>
+                                </div>
+                                
+                                <div class="quantity-controls">
+                                    <button class="quantity-btn" onclick="decreaseQuantity(this)">-</button>
+                                    <input type="number" 
+                                           class="quantity-input" 
+                                           min="0" 
+                                           value="0" 
+                                           onchange="calculateTotal(this)"
+                                           data-original-price="<?= $product['original_price']; ?>"
+                                           data-selling-price="<?= $product['selling_price']; ?>">
+                                    <button class="quantity-btn" onclick="increaseQuantity(this)">+</button>
+                                </div>
+                                
+                                <button class="add-btn" onclick="addToCart(this)">+ Add</button>
+                                
+                                <div class="total-price" style="display: none;">
+                                    Total: ₹<span class="product-total">0.00</span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+        <?php endforeach; ?>
+    <?php else: ?>
+        <div class="text-center" style="padding: 40px;">
+            <h4>No categories found.</h4>
+        </div>
+    <?php endif; ?>
+</div>
+
+<!-- Total Section -->
+<div class="total-section">
+    <div class="total-amount">Total Price: ₹<span id="totalPrice">0.00</span></div>
+</div>
+
+<!-- Contact Form -->
+<div class="form-container">
+    <form id="myForm" action="" method="post">
+        <h2>Fill the Details</h2>
+        <div class="row">
+            <div class="form-group col-sm-6">
+                <label for="name">Name<span class="star">*</span></label>
+                <input type="text" name="name" id="name" class="form-control" placeholder="Enter Your Name" required>
+            </div>
+            <div class="form-group col-sm-6">
+                <label for="email">Email</label>
+                <input type="email" name="email" id="email" class="form-control" placeholder="Enter Your EmailId">
+            </div>
+        </div>
+        <div class="row">
+            <div class="form-group col-sm-12">
+                <label for="number">Mobile Number<span class="star">*</span></label>
+                <input type="text" name="number" id="number" class="form-control" placeholder="Enter Your Mobile Number" required>
+            </div>
+        </div>
+        <div class="row">
+            <div class="form-group col-sm-12">
+                <label for="address">Address<span class="star">*</span></label>
+                <textarea name="address" id="address" class="form-control" placeholder="Enter Your Address" required></textarea>
+            </div>
+        </div>
+        <div class="row">
+            <div class="form-group col-sm-6">
+                <label for="pincode">Pincode<span class="star">*</span></label>
+                <input type="text" name="pincode" id="pincode" class="form-control" placeholder="Enter Pincode" required>
+            </div>
+            <div class="form-group col-sm-6">
+                <label for="totalpriceinput">Total Price</label>
+                <input type="text" name="totalpriceinput" id="totalpriceinput" class="form-control" readonly>
+            </div>
+        </div>
+        <button id="submitButton" class="submit-btn" type="button">Submit Order</button>
+    </form>
+</div>
+
+<!-- Image Modal -->
+<div id="imageModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeImageModal()">&times;</span>
+        <img id="modalImage" style="width: 100%; height: auto; border-radius: 10px;" src="" alt="Popup Image">
+    </div>
+</div>
+
+<!-- YouTube Modal -->
+<div id="youtubeModal" class="modal" style="display:none;">
+    <div class="modal-content" style="position:relative;">
+        <span class="close" onclick="closeYoutubeModal()">&times;</span>
+        <iframe id="youtubeFrame" width="100%" height="400" frameborder="0" allowfullscreen></iframe>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Modern JavaScript Functions
+
+function increaseQuantity(button) {
+    const input = button.parentElement.querySelector('.quantity-input');
+    input.value = parseInt(input.value) + 1;
+    calculateTotal(input);
+}
+
+function decreaseQuantity(button) {
+    const input = button.parentElement.querySelector('.quantity-input');
+    if (parseInt(input.value) > 0) {
+        input.value = parseInt(input.value) - 1;
+        calculateTotal(input);
+    }
+}
+
+function addToCart(button) {
+    const card = button.closest('.product-card');
+    const input = card.querySelector('.quantity-input');
+    const currentValue = parseInt(input.value);
+    input.value = currentValue + 1;
+    calculateTotal(input);
+    
+    // Add visual feedback
+    button.style.background = 'linear-gradient(135deg, #ff6b6b, #ee5a52)';
+    button.textContent = 'Added!';
+    setTimeout(() => {
+        button.style.background = 'linear-gradient(135deg, #4caf50, #45a049)';
+        button.textContent = '+ Add';
+    }, 1000);
+}
+
+function calculateTotal(input) {
+    const card = input.closest('.product-card');
+    const originalPrice = parseFloat(input.dataset.originalPrice);
+    const sellingPrice = parseFloat(input.dataset.sellingPrice);
+    const quantity = parseInt(input.value);
+    const totalPriceElement = card.querySelector('.product-total');
+    const totalPriceContainer = card.querySelector('.total-price');
+
+    if (quantity > 0) {
+        const total = sellingPrice * quantity;
+        totalPriceElement.textContent = total.toFixed(2);
+        totalPriceContainer.style.display = 'block';
+    } else {
+        totalPriceContainer.style.display = 'none';
+    }
+
+    updateProductDetails();
+}
+
+function updateProductDetails() {
+    const productInputs = document.querySelectorAll(".quantity-input");
+    const noProductInput = document.querySelector(".noProduct");
+    const savePriceInput = document.querySelector(".saveprice");
+    const overallInput = document.querySelector(".overall");
+    const totalPriceInput = document.querySelector("#totalpriceinput");
+
+    let totalProducts = 0;
+    let totalPrice = 0;
+    let totalOriginalPrice = 0;
+
+    productInputs.forEach((input) => {
+        const quantity = parseInt(input.value);
+        const originalPrice = parseFloat(input.dataset.originalPrice);
+        const sellingPrice = parseFloat(input.dataset.sellingPrice);
+
+        if (quantity > 0) {
+            totalProducts += quantity;
+            totalPrice += sellingPrice * quantity;
+            totalOriginalPrice += originalPrice * quantity;
+        }
+    });
+
+    const savePrice = totalOriginalPrice - totalPrice;
+
+    noProductInput.value = totalProducts;
+    overallInput.value = totalPrice.toFixed(2);
+    savePriceInput.value = savePrice.toFixed(2);
+    totalPriceInput.value = totalPrice.toFixed(2);
+
+    const totalPriceElement = document.getElementById("totalPrice");
+    totalPriceElement.textContent = totalPrice.toFixed(2);
+    
+    // Add animation for price changes
+    totalPriceElement.classList.add('price-animated');
+    setTimeout(() => {
+        totalPriceElement.classList.remove('price-animated');
+    }, 500);
+}
+
+function openImageModal(imageElement) {
+    var modal = document.getElementById("imageModal");
+    var modalImage = document.getElementById("modalImage");
+    modal.style.display = "block";
+    modalImage.src = imageElement.src;
+}
+
+function closeImageModal() {
+    var modal = document.getElementById("imageModal");
+    modal.style.display = "none";
+}
+
+function openYoutubeModal(url) {
+    const videoId = extractYoutubeID(url);
+    const embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&autoplay=1`;
+    document.getElementById('youtubeFrame').src = embedUrl;
+    document.getElementById('youtubeModal').style.display = 'block';
+}
+
+function closeYoutubeModal() {
+    document.getElementById('youtubeModal').style.display = 'none';
+    document.getElementById('youtubeFrame').src = '';
+}
+
+function extractYoutubeID(url) {
+    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+}
+
+// Form submission
+document.getElementById("submitButton").addEventListener("click", function () {
+    const totalPriceInput = document.querySelector("#totalpriceinput");
+    const totalPrice = parseFloat(totalPriceInput.value);
+
+    if (totalPrice >= 2000) {
+        const name = document.getElementById("name").value;
+        const email = document.getElementById("email").value;
+        const number = document.getElementById("number").value;
+        const address = document.getElementById("address").value;
+        const pincode = document.getElementById("pincode").value;
+        
+        if (name === "" || number === "" || address === "" || pincode === "") {
+            alert("Please fill out all required fields.");
+        } else if (!isProductSelected()) {
+            alert("Please select at least one product.");
+        } else {
+            sendEmailAndWhatsApp();
+        }
+    } else {
+        alert("Total price must be at least ₹2000 to submit the form.");
+    }
+});
+
+function isProductSelected() {
+    const productQuantities = document.querySelectorAll(".quantity-input");
+    for (const quantityInput of productQuantities) {
+        if (parseInt(quantityInput.value) > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function sendEmailAndWhatsApp() {
+    const phoneNumber = "+919092284002";
+    const name = document.getElementById("name").value;
+    const email = document.getElementById("email").value;
+    const number = document.getElementById("number").value;
+    const address = document.getElementById("address").value;
+    const pincode = document.getElementById("pincode").value;
+    const totalpriceinput = document.getElementById("totalpriceinput").value;
+         
+    let message = "Hello, I'm interested in the following products:\n";
+    const productCards = document.querySelectorAll(".product-card");
+    
+    productCards.forEach((card) => {
+        const productName = card.querySelector(".product-name").textContent;
+        const sellingPrice = parseFloat(card.querySelector(".quantity-input").dataset.sellingPrice);
+        const quantity = parseInt(card.querySelector(".quantity-input").value);
+        
+        if (quantity > 0) {
+            message += `${productName}: ${quantity} pieces = ₹${(sellingPrice * quantity).toFixed(2)}\n`;
+        }
+    });
+
+    message += `\nTotal Price: ₹${totalpriceinput}\nName: ${name}\nEmail: ${email}\nMobile Number: ${number}\nAddress: ${address}\nPincode: ${pincode}`;
+
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappLink = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+
+    window.location.href = whatsappLink;
+}
+
+// Initialize carousel
+$(document).ready(function() {
+    $('.carousel-item').eq(0).addClass('active');
+    var currentSlide = 0;
+
+    function changeSlide() {
+        var prevSlide = currentSlide;
+        currentSlide = (currentSlide + 1) % $('.carousel-item').length;
+        $('.carousel-item').eq(prevSlide).removeClass('active');
+        $('.carousel-item').eq(currentSlide).addClass('active');
+        setTimeout(changeSlide, 5000);
+    }
+
+    if ($('.carousel-item').length > 1) {
+        changeSlide();
+    }
+});
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    const imageModal = document.getElementById("imageModal");
+    const youtubeModal = document.getElementById("youtubeModal");
+    
+    if (event.target == imageModal) {
+        closeImageModal();
+    }
+    if (event.target == youtubeModal) {
+        closeYoutubeModal();
+    }
+}
+
+</script>
+
+<?php include('footer.php'); ?>
+
+</body>
+</html>
