@@ -1,0 +1,1079 @@
+<?php
+include("header.php");
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 0);
+error_reporting(E_ALL);
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+require 'vendor/autoload.php';
+
+// Include your database connection or any other necessary functions
+$slider = getAll("sliderHome");
+function getProductsList()
+{
+    global $con;
+    $query = "SELECT p.*, c.id AS categoryid, c.name AS categoryName 
+              FROM products p 
+              INNER JOIN categories c ON p.category_id = c.id
+              WHERE p.status = '1'
+              ORDER BY p.id ASC";
+    $result = mysqli_query($con, $query);
+    return $result;
+}
+function bannerSetting()
+{
+    global $con;
+    $query = "SELECT * FROM  homebanner WHERE select_id =1";
+    $query_run = mysqli_query($con, $query);
+
+    if (!$query_run) {
+        die("Query failed: " . mysqli_error($con));
+    }
+
+    return mysqli_fetch_assoc($query_run);
+}
+$bannerSetting = bannerSetting();
+
+function getCategory()
+{
+    global $con;
+    $query = "SELECT * FROM categories";
+    $result = mysqli_query($con, $query);
+    return mysqli_fetch_assoc($result);
+}
+
+function getAllProducts2()
+{
+    global $con;
+    $products = array();
+    $sql = "SELECT p.*, c.id AS categoryid, c.name AS categoryName ,c.slug AS categoryslug 
+            FROM products p 
+            INNER JOIN categories c ON p.category_id = c.id
+            WHERE p.status = '1'
+            ORDER BY p.id ASC";
+    $result = mysqli_query($con, $sql);
+
+    if (mysqli_num_rows($result) > 0) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $products[] = $row;
+        }
+    }
+    return $products;
+}
+
+function getSubCategoryProducts($categoryIds)
+{
+    global $con;
+
+    // Sanitize category IDs to prevent SQL injection
+    $categoryIds = array_map('intval', $categoryIds);
+    $categoryIds = implode(",", $categoryIds);
+
+    $query = "SELECT p.*, c.name AS categoryName 
+              FROM products p 
+              INNER JOIN categories c ON p.category_id = c.id
+              WHERE p.category_id IN ($categoryIds) AND p.status = '1' 
+              ORDER BY p.id ASC";
+
+    $result = mysqli_query($con, $query);
+
+    $products = [];
+    if (mysqli_num_rows($result) > 0) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $products[] = $row;
+        }
+    }
+    return $products;
+}
+$category = getCategory();
+
+$productResult = getProductsList();
+function getAllActiveCategories()
+{
+    global $con;
+    $query = "SELECT * FROM categories WHERE status = '0' ORDER BY sort_order ASC";
+    $query_run = mysqli_query($con, $query);
+
+    if (!$query_run) {
+        die("Query Failed: " . mysqli_error($con));
+    }
+
+    return $query_run;
+}
+
+// Fetch the categories
+$categories = getAllActiveCategories();
+
+// Fetch all products initially
+$products = getAllProducts2();
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Crackers</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script type="text/javascript">
+       (function(){
+          emailjs.init({
+            publicKey: "pxM5-bjbOcy6zeyuq",
+          });
+       })();
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+
+        /* Header Styles */
+        .main-header {
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            color: white;
+            padding: 15px 0;
+            position: sticky;
+            top: 0;
+            z-index: 1020;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .header-title {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            display: block;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+            gap: 20px;
+        }
+
+        /* Left Side - Product Table */
+        .products-section {
+            flex: 1;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .products-header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .category-section {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .category-header {
+            background: #f8f9fa;
+            padding: 10px 20px;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .products-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .products-table th {
+            background: #ffeaa7;
+            color: #333;
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: 600;
+            border-bottom: 2px solid #fdcb6e;
+            font-size: 14px;
+        }
+
+        .products-table td {
+            padding: 12px 8px;
+            text-align: center;
+            border-bottom: 1px solid #f0f0f0;
+            vertical-align: middle;
+        }
+
+        .product-row {
+            transition: all 0.3s ease;
+        }
+
+        .product-row:hover {
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            color: white;
+        }
+
+        .product-image img {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .product-image img:hover {
+            transform: scale(1.2);
+        }
+
+        .product-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .original-price {
+            color: #999;
+            text-decoration: line-through;
+            font-size: 12px;
+        }
+
+        .selling-price {
+            color: #e91e63;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .quantity-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .quantity-btn {
+            background: #e91e63;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .quantity-input {
+            width: 40px;
+            padding: 4px;
+            text-align: center;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .add-btn {
+            background: linear-gradient(135deg, #4caf50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .add-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76,175,80,0.3);
+        }
+
+        /* Right Side - Cart */
+        .cart-section {
+            width: 350px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            height: fit-content;
+            position: sticky;
+            top: 100px;
+        }
+
+        .cart-header {
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 15px 15px 0 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .cart-summary {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .summary-row.total {
+            font-weight: 700;
+            font-size: 18px;
+            color: #e91e63;
+            padding-top: 10px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .cart-items {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 0 20px;
+        }
+
+        .cart-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+            gap: 10px;
+        }
+
+        .cart-item-image {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            object-fit: cover;
+        }
+
+        .cart-item-details {
+            flex: 1;
+        }
+
+        .cart-item-name {
+            font-weight: 600;
+            font-size: 12px;
+            margin-bottom: 2px;
+        }
+
+        .cart-item-price {
+            color: #e91e63;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .cart-item-quantity {
+            font-size: 12px;
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 10px;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .cart-actions {
+            padding: 20px;
+        }
+
+        .proceed-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .proceed-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(233,30,99,0.3);
+        }
+
+        .proceed-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Form Modal */
+        .form-modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            overflow-y: auto;
+        }
+
+        .form-container {
+            background: white;
+            max-width: 600px;
+            margin: 50px auto;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .form-header {
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            color: white;
+            padding: 20px;
+            border-radius: 15px 15px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .form-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .form-content {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .star {
+            color: #e91e63;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #e91e63;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(233,30,99,0.3);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+        }
+
+        .modal-content {
+            margin: 5% auto;
+            width: 90%;
+            max-width: 600px;
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            position: relative;
+        }
+
+        .close {
+            position: absolute;
+            right: 15px;
+            top: 10px;
+            font-size: 28px;
+            color: #999;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #e91e63;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
+            .cart-section {
+                width: 100%;
+                position: relative;
+                top: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .header-stats {
+                gap: 15px;
+            }
+
+            .products-table th,
+            .products-table td {
+                padding: 8px 4px;
+                font-size: 12px;
+            }
+
+            .product-image img {
+                width: 40px;
+                height: 40px;
+            }
+
+            .main-container {
+                padding: 0 10px;
+            }
+        }
+
+        /* Empty Cart State */
+        .cart-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+
+        .cart-empty i {
+            font-size: 48px;
+            color: #ddd;
+            margin-bottom: 15px;
+        }
+
+        /* YouTube Button */
+        .youtube-btn {
+            background: #ff0000;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 10px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <div class="main-header">
+        <div class="header-content">
+            <div class="header-title">🎆 Modern Crackers</div>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <span class="stat-value" id="total-products">0</span>
+                    <span class="stat-label">Products</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="total-savings">₹0</span>
+                    <span class="stat-label">You Save</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="cart-total">₹0</span>
+                    <span class="stat-label">Total</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Left Side - Products Table -->
+        <div class="products-section">
+            <div class="products-header">
+                <i class="fas fa-shopping-bag"></i> All Products
+            </div>
+
+            <?php if (!empty($categories)): ?>
+                <?php foreach ($categories as $category): ?>
+                    <?php
+                    // Fetch products for the current category
+                    $products = getSubCategoryProducts([$category['id']]);
+                    if (!empty($products)): ?>
+                        <div class="category-section">
+                            <div class="category-header">
+                                <?= $category['name']; ?>
+                            </div>
+                            
+                            <table class="products-table">
+                                <thead>
+                                    <tr>
+                                        <th>IMAGE</th>
+                                        <th>PRODUCT NAME</th>
+                                        <th>CONTENT</th>
+                                        <th>ACTUAL PRICE(₹)</th>
+                                        <th>AMOUNT</th>
+                                        <th>QUANTITY</th>
+                                        <th>ADD</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($products as $product): ?>
+                                        <tr class="product-row" data-product-id="<?= $product['id']; ?>">
+                                            <td class="product-image">
+                                                <img src="uploads/<?= $product['image']; ?>" 
+                                                     onclick="openImageModal(this)" 
+                                                     alt="<?= $product['name']; ?>">
+                                                <?php if (!empty($product['youtube_url'])) { ?>
+                                                    <button class="youtube-btn" onclick="openYoutubeModal('<?= $product['youtube_url']; ?>')">
+                                                        <i class='fab fa-youtube'></i>
+                                                    </button>
+                                                <?php } ?>
+                                            </td>
+                                            <td class="product-name"><?= $product['name']; ?></td>
+                                            <td><?= $product['piece_per_box']; ?></td>
+                                            <td>
+                                                <div class="original-price">₹<?= $product['original_price']; ?></div>
+                                            </td>
+                                            <td>
+                                                <div class="selling-price">₹<?= $product['selling_price']; ?></div>
+                                            </td>
+                                            <td>
+                                                <div class="quantity-controls">
+                                                    <button class="quantity-btn" onclick="decreaseQuantity(this)" type="button">-</button>
+                                                    <input type="number" 
+                                                           class="quantity-input" 
+                                                           min="0" 
+                                                           value="0" 
+                                                           data-product-id="<?= $product['id']; ?>"
+                                                           data-product-name="<?= $product['name']; ?>"
+                                                           data-product-image="uploads/<?= $product['image']; ?>"
+                                                           data-original-price="<?= $product['original_price']; ?>"
+                                                           data-selling-price="<?= $product['selling_price']; ?>"
+                                                           onchange="updateCart()">
+                                                    <button class="quantity-btn" onclick="increaseQuantity(this)" type="button">+</button>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <button class="add-btn" onclick="quickAdd(this)" type="button">+ Add</button>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="text-center" style="padding: 40px;">
+                    <h4>No categories found.</h4>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Right Side - Cart -->
+        <div class="cart-section">
+            <div class="cart-header">
+                <i class="fas fa-shopping-cart"></i> Selected Products
+            </div>
+
+            <div class="cart-summary">
+                <div class="summary-row">
+                    <span>Items:</span>
+                    <span id="cart-items-count">0</span>
+                </div>
+                <div class="summary-row">
+                    <span>Original Total:</span>
+                    <span id="original-total">₹0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>You Save:</span>
+                    <span id="savings-amount" style="color: #4caf50;">₹0.00</span>
+                </div>
+                <div class="summary-row total">
+                    <span>Total Amount:</span>
+                    <span id="final-total">₹0.00</span>
+                </div>
+            </div>
+
+            <div class="cart-items" id="cart-items">
+                <div class="cart-empty">
+                    <i class="fas fa-shopping-cart"></i>
+                    <div>Your cart is empty</div>
+                    <small>Add products from the left to get started</small>
+                </div>
+            </div>
+
+            <div class="cart-actions">
+                <button class="proceed-btn" id="proceed-btn" onclick="openCheckoutForm()" disabled>
+                    Proceed to Checkout
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Checkout Form Modal -->
+    <div id="checkoutModal" class="form-modal">
+        <div class="form-container">
+            <div class="form-header">
+                <h3>Checkout Details</h3>
+                <button class="form-close" onclick="closeCheckoutForm()">&times;</button>
+            </div>
+            <div class="form-content">
+                <form id="checkoutForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="name">Name<span class="star">*</span></label>
+                                <input type="text" name="name" id="name" class="form-control" placeholder="Enter Your Name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="email">Email</label>
+                                <input type="email" name="email" id="email" class="form-control" placeholder="Enter Your Email">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="number">Mobile Number<span class="star">*</span></label>
+                        <input type="text" name="number" id="number" class="form-control" placeholder="Enter Your Mobile Number" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="address">Address<span class="star">*</span></label>
+                        <textarea name="address" id="address" class="form-control" placeholder="Enter Your Address" required rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="pincode">Pincode<span class="star">*</span></label>
+                                <input type="text" name="pincode" id="pincode" class="form-control" placeholder="Enter Pincode" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="total-amount-input">Total Amount</label>
+                                <input type="text" id="total-amount-input" class="form-control" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="submit-btn" onclick="submitOrder()">Submit Order</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeImageModal()">&times;</span>
+            <img id="modalImage" style="width: 100%; height: auto; border-radius: 10px;" src="" alt="Product Image">
+        </div>
+    </div>
+
+    <!-- YouTube Modal -->
+    <div id="youtubeModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeYoutubeModal()">&times;</span>
+            <iframe id="youtubeFrame" width="100%" height="400" frameborder="0" allowfullscreen></iframe>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let cart = [];
+
+        function increaseQuantity(button) {
+            const input = button.parentElement.querySelector('.quantity-input');
+            input.value = parseInt(input.value) + 1;
+            updateCart();
+        }
+
+        function decreaseQuantity(button) {
+            const input = button.parentElement.querySelector('.quantity-input');
+            if (parseInt(input.value) > 0) {
+                input.value = parseInt(input.value) - 1;
+                updateCart();
+            }
+        }
+
+        function quickAdd(button) {
+            const row = button.closest('.product-row');
+            const input = row.querySelector('.quantity-input');
+            input.value = parseInt(input.value) + 1;
+            updateCart();
+            
+            // Visual feedback
+            button.style.background = 'linear-gradient(135deg, #ff6b6b, #ee5a52)';
+            button.textContent = 'Added!';
+            setTimeout(() => {
+                button.style.background = 'linear-gradient(135deg, #4caf50, #45a049)';
+                button.textContent = '+ Add';
+            }, 1000);
+        }
+
+        function updateCart() {
+            cart = [];
+            let totalItems = 0;
+            let originalTotal = 0;
+            let finalTotal = 0;
+
+            // Collect all products with quantity > 0
+            document.querySelectorAll('.quantity-input').forEach(input => {
+                const quantity = parseInt(input.value);
+                if (quantity > 0) {
+                    const productData = {
+                        id: input.dataset.productId,
+                        name: input.dataset.productName,
+                        image: input.dataset.productImage,
+                        originalPrice: parseFloat(input.dataset.originalPrice),
+                        sellingPrice: parseFloat(input.dataset.sellingPrice),
+                        quantity: quantity
+                    };
+                    
+                    cart.push(productData);
+                    totalItems += quantity;
+                    originalTotal += productData.originalPrice * quantity;
+                    finalTotal += productData.sellingPrice * quantity;
+                }
+            });
+
+            const savings = originalTotal - finalTotal;
+
+            // Update header stats
+            document.getElementById('total-products').textContent = totalItems;
+            document.getElementById('total-savings').textContent = '₹' + savings.toFixed(2);
+            document.getElementById('cart-total').textContent = '₹' + finalTotal.toFixed(2);
+
+            // Update cart summary
+            document.getElementById('cart-items-count').textContent = totalItems;
+            document.getElementById('original-total').textContent = '₹' + originalTotal.toFixed(2);
+            document.getElementById('savings-amount').textContent = '₹' + savings.toFixed(2);
+            document.getElementById('final-total').textContent = '₹' + finalTotal.toFixed(2);
+
+            // Update cart items display
+            updateCartDisplay();
+
+            // Enable/disable proceed button
+            const proceedBtn = document.getElementById('proceed-btn');
+            if (finalTotal >= 2000) {
+                proceedBtn.disabled = false;
+                proceedBtn.textContent = 'Proceed to Checkout';
+            } else if (totalItems > 0) {
+                proceedBtn.disabled = true;
+                proceedBtn.textContent = `Min Order ₹2000 (₹${(2000 - finalTotal).toFixed(2)} more)`;
+            } else {
+                proceedBtn.disabled = true;
+                proceedBtn.textContent = 'Proceed to Checkout';
+            }
+        }
+
+        function updateCartDisplay() {
+            const cartContainer = document.getElementById('cart-items');
+            
+            if (cart.length === 0) {
+                cartContainer.innerHTML = `
+                    <div class="cart-empty">
+                        <i class="fas fa-shopping-cart"></i>
+                        <div>Your cart is empty</div>
+                        <small>Add products from the left to get started</small>
+                    </div>
+                `;
+                return;
+            }
+
+            cartContainer.innerHTML = cart.map(item => `
+                <div class="cart-item">
+                    <img src="${item.image}" alt="${item.name}" class="cart-item-image">
+                    <div class="cart-item-details">
+                        <div class="cart-item-name">${item.name}</div>
+                        <div class="cart-item-price">₹${item.sellingPrice} × ${item.quantity} = ₹${(item.sellingPrice * item.quantity).toFixed(2)}</div>
+                    </div>
+                    <div class="cart-item-quantity">${item.quantity}</div>
+                </div>
+            `).join('');
+        }
+
+        function openCheckoutForm() {
+            document.getElementById('total-amount-input').value = '₹' + document.getElementById('final-total').textContent.replace('₹', '');
+            document.getElementById('checkoutModal').style.display = 'block';
+        }
+
+        function closeCheckoutForm() {
+            document.getElementById('checkoutModal').style.display = 'none';
+        }
+
+        function submitOrder() {
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const number = document.getElementById('number').value;
+            const address = document.getElementById('address').value;
+            const pincode = document.getElementById('pincode').value;
+
+            if (!name || !number || !address || !pincode) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            // Prepare WhatsApp message
+            const phoneNumber = "+919092284002";
+            let message = "🎆 New Order from Modern Crackers!\n\n";
+            
+            message += "📋 ORDER DETAILS:\n";
+            cart.forEach(item => {
+                message += `• ${item.name}: ${item.quantity} pcs = ₹${(item.sellingPrice * item.quantity).toFixed(2)}\n`;
+            });
+            
+            const finalTotal = parseFloat(document.getElementById('final-total').textContent.replace('₹', ''));
+            const originalTotal = parseFloat(document.getElementById('original-total').textContent.replace('₹', ''));
+            const savings = originalTotal - finalTotal;
+            
+            message += `\n💰 PAYMENT SUMMARY:\n`;
+            message += `Original Total: ₹${originalTotal.toFixed(2)}\n`;
+            message += `You Save: ₹${savings.toFixed(2)}\n`;
+            message += `Final Total: ₹${finalTotal.toFixed(2)}\n\n`;
+            
+            message += `👤 CUSTOMER DETAILS:\n`;
+            message += `Name: ${name}\n`;
+            message += `Email: ${email}\n`;
+            message += `Mobile: ${number}\n`;
+            message += `Address: ${address}\n`;
+            message += `Pincode: ${pincode}\n`;
+
+            const encodedMessage = encodeURIComponent(message);
+            const whatsappLink = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+
+            // Open WhatsApp
+            window.open(whatsappLink, '_blank');
+            
+            // Close form and reset cart
+            closeCheckoutForm();
+            alert('Order submitted! You will be redirected to WhatsApp.');
+        }
+
+        // Modal functions
+        function openImageModal(img) {
+            document.getElementById('modalImage').src = img.src;
+            document.getElementById('imageModal').style.display = 'block';
+        }
+
+        function closeImageModal() {
+            document.getElementById('imageModal').style.display = 'none';
+        }
+
+        function openYoutubeModal(url) {
+            const videoId = extractYoutubeID(url);
+            const embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&autoplay=1`;
+            document.getElementById('youtubeFrame').src = embedUrl;
+            document.getElementById('youtubeModal').style.display = 'block';
+        }
+
+        function closeYoutubeModal() {
+            document.getElementById('youtubeModal').style.display = 'none';
+            document.getElementById('youtubeFrame').src = '';
+        }
+
+        function extractYoutubeID(url) {
+            const regex = /(?:youtube\.com\/(?:[^\/]+\/.+|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i;
+            const match = url.match(regex);
+            return match ? match[1] : null;
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const imageModal = document.getElementById('imageModal');
+            const youtubeModal = document.getElementById('youtubeModal');
+            const checkoutModal = document.getElementById('checkoutModal');
+            
+            if (event.target == imageModal) {
+                closeImageModal();
+            }
+            if (event.target == youtubeModal) {
+                closeYoutubeModal();
+            }
+            if (event.target == checkoutModal) {
+                closeCheckoutForm();
+            }
+        }
+
+        // Initialize cart on page load
+        updateCart();
+    </script>
+
+    <?php include('footer.php'); ?>
+</body>
+</html>
